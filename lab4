@@ -38,11 +38,7 @@ figureShape db 00h, 00h, 00h, 00h  ;L 10
             db 00h, 0E0h, 00h, 00h
             db 00h, 0E0h, 00h, 00h
             db 00h, 00h,  00h, 00h
-            
-            db 00h, 00h, 60h, 00h ;I 60
-            db 00h, 00h, 60h, 00h
-            db 00h, 00h, 60h, 00h
-            db 00h, 00h, 60h, 00h  
+ 
 
 currentFigureShape db 00h, 00h, 00h, 00h
                    db 00h, 00h, 00h, 00h
