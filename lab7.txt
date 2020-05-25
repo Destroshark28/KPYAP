@@ -62,7 +62,7 @@ loadProgram:
 	int 21h 
 	
 	
-	; exec parameter block ( load and run )
+	
 	mov ax, cs
 	mov word ptr EPB + 4, ax		; cmd segment
 	mov word ptr EPB + 8, ax		; fcb1 segment
