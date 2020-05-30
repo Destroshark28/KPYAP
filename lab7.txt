@@ -1,4 +1,4 @@
-	JUMPS
+		
 	.model tiny
 	.code
 	.186
@@ -11,118 +11,131 @@ start:
 	mov		cl, es:[0080h]
 	mov		si, 81h
 	lea		di, programPath    
-	mov		bx, 30  
-	call	readParam 	
-	lea		di, commandText 
-	mov		bx, 125
-	call	readParam    
-	lea		di, buff 
-	mov		bx, 10
-	call	readParam
+	mov		bx, maxCmdSize
+	call	readParam	
+	lea		di, [commandText + 1]
+	mov		bx, 126
+	call	readParamWithSpaces    
 	
 	cmp		programPath[0], 0
 	je		invalidCommandLineArgs		
-	cmp		commandText[0], 0
-	je		invalidCommandLineArgs
-	cmp		buff[0], 0
-	jne		invalidCommandLineArgs
 	
-    mov ah, 09h
-    mov dx, offset message
-    int 21h
+	call	calcCommandLineSize	           	             
+	             
+    mov		ah, 09h
+    mov		dx, offset message
+    int		21h
     
-    mov ah, 0Ah
-    mov dx, offset userInput
-    int 21h  
+    mov		ah, 0Ah
+    mov		dx, offset userInput
+    int		21h  
         
-    mov si, offset string      
-    call atoi  
+    mov		si, offset string      
+    call	atoi  
     
-    cmp error, 1
-    jne loadProgram
+    cmp		error, 1
+    jne		loadProgram
     
-    mov ah, 09h
-    mov dx, offset invalidNumberMessage
-    int 21h
+    mov		ah, 09h
+    mov		dx, offset invalidNumberMessage
+    int		21h
     
-    jmp start    
+    jmp		start    
     
 loadProgram:
 	              
-	mov ah, 09h
-    mov dx, offset newLine
-    int 21h                
+	mov 	ah, 09h
+    mov 	dx, offset newLine
+    int 	21h                
 	              
-	mov sp, programLength + 100h + 200h
+	mov 	sp, programLength + 100h + 200h
 	
-	mov ah, 4Ah
+	mov 	ah, 4Ah
 	
 	stackShift = programLength + 100h + 200h
-	mov bx, stackShift shr 4 + 1
-	int 21h 
+	mov 	bx, stackShift shr 4 + 1
+	int 	21h 
 	
 	
+	; exec parameter block ( load and run )
+	mov 	ax, cs
+	mov 	word ptr EPB + 4, ax		; cmd segment
+	mov 	word ptr EPB + 8, ax		; fcb1 segment
+	mov 	word ptr EPB + 0Ch, ax		; fcb2 segment
 	
-	mov ax, cs
-	mov word ptr EPB + 4, ax		; cmd segment
-	mov word ptr EPB + 8, ax		; fcb1 segment
-	mov word ptr EPB + 0Ch, ax		; fcb2 segment
-	
-	xor cx, cx
-	mov cl, N_times
+	xor 	cx, cx
+	mov 	cl, N_times
 
 runProgram:
-	mov ssSeg, ss
-	mov spSeg, sp
+	mov 	ssSeg, ss
+	mov 	spSeg, sp
 	
-	mov ax, 4B00h
-	mov dx, offset programPath
-	mov bx, offset EPB
-	int 21h
-	jc errorDuringLoadingProgram
-	loop runProgram
+	mov		ax, 4B00h
+	mov 	dx, offset programPath
+	mov 	bx, offset EPB
+	int 	21h
+	jc 		errorDuringLoadingProgram
+	loop 	runProgram
 	
-	mov ss, cs:ssSeg
-	mov sp, cs:spSeg
+	mov 	ss, cs:ssSeg
+	mov 	sp, cs:spSeg
 	
-    jmp exitStart
+    jmp 	exitStart
  
 errorDuringLoadingProgram:
-    mov ah, 09h
-    mov dx, offset error4Bh
-    int 21h
-    jmp exitStart 
+    mov 	ah, 09h
+    mov 	dx, offset error4Bh
+    int 	21h
+    jmp 	exitStart 
  
 invalidCommandLineArgs:
-    mov ah, 09h
-    mov dx, offset invalidCmdArgs
-    int 21h
-        
+    mov 	ah, 09h
+    mov 	dx, offset invalidCmdArgs
+    int 	21h
+        	
 exitStart:
 	
-	int 20h                          
+	int 	20h      
+	
+
+proc	calcCommandLineSize
+		mov		cx, maxCmdSize
+		mov		al, 0Dh   
+		lea		di, commandText
+		
+		repnz	scasb    
+		neg		cx        
+		dec		cx
+		add		cx, maxCmdSize
+
+		cmp		cx, 1
+		jne		cmdNotEmpty		                              
+		mov		cx, 0		   
+		   
+cmdNotEmpty:		                               
+		mov		commandLine, cl	                       
+	                       
+endp	calcCommandLineSize	                    
                
                
 proc	readParam		
 		push	ax	  
 		push	bx     	          	
-	 
-	 	jcxz	exitReadParam
+	           
+		cmp		cx, 0	           
+	 	jle		exitReadParam
 	        	      	                  	                  
 skipSpaces:
-		
 		push	di
-		
-		mov		di, si 
+		mov		di, si
 		
 		mov		al, ' '
 		repz	scasb	   
 		dec		di   
-		inc		cx;?
+		inc		cx
 		mov		si, di  
 		
 		pop		di
-		
 		        
 findParamEnd:
 		movsb     
@@ -131,7 +144,6 @@ findParamEnd:
 		cmp		bx, 0
 		je		paramEnded
 		cmp		byte ptr es:[di - 1], 0Dh
-		;
 		je		paramEnded
 		cmp		byte ptr es:[di - 1], ' '
 		jne		findParamEnd
@@ -147,9 +159,43 @@ exitReadParam:
 		ret	            	
 endp	readParam  
 	
-	
+	          
+	          
+	                
+	                
+proc	readParamWithSpaces	
+		push	ax	
+		push	bx       	          	
+	      
+		cmp		cx, 0	      
+	 	jle		exitReadParam2	        	      	                  	                
+		        
+findParamEnd2:
+		movsb    
+		dec		cx    
+		dec		bx
+		cmp		bx, 0
+		je		paramEnded2
+		cmp		byte ptr es:[di - 1], 0Dh
+		je		paramEnded2
+		jmp		findParamEnd2
+		
+paramEnded2:	   		
+		dec		di    
+		mov		byte ptr es:[di], 0Dh
+		inc		di
+
+exitReadParam2:	      
+		pop		bx
+		pop		ax	     		        	
+		ret	            	
+endp	readParamWithSpaces
+
+
+
+	                
 atoi	proc
-      
+;==== ds:si - string address ===  
     	push bx
     	push cx
     	push dx
@@ -199,6 +245,8 @@ exit:
 	    ret 
 atoi	endp 
 	
+	
+maxCmdSize		EQU		126
 
 message			db		'How many times would you like to run the program? [1, 255]', 10, 13, 'Your answer << $'     
 newLine         db      10, 13, '$' 
@@ -206,23 +254,21 @@ invalidNumberMessage    db      'Invalid input: number should contain only digit
 invalidCmdArgs          db      'Invalid command line input. Try again.', 10, 13, '$' 
 error4Bh                db      'Error has happened during loading/running program.', 10, 13, 'Check your program path and try again', '$'        
 error           db      0
-ssSeg			dw		0			
-			dw		0
+ssSeg			dw		0			; stack register keepers
+spSeg			dw		0
 userInput    	EQU $                             ; Buffer for string
-				maxLength db 4                    
-				length 	  db 0                  
-				string    db 4 dup ('$')          
+				maxLength db 4                    ; Maximum characters buffer can hold
+				length 	  db 0                    ; Number of characters actually read,
+				string    db 4 dup ('$')          ; Actual characters read, including the final carriage return (0Dh)
 N_times			db		0	
-programPath		db		30 dup('$')
+programPath		db		128 dup(0)
 
 EPB				dw		0000
 				dw 		offset commandLine, 0
 				dw 		005Ch, 0, 006Ch, 0
 				
-commandLine		db		125
-commandText		db 		122 dup(0)
-				db		'0Dh'         
-buff			db		10 dup(0)				
+commandLine		db		maxCmdSize
+commandText		db 		' ', maxCmdSize dup(0Dh)	
 MAX_NUMBER		equ		255
 programLength	equ		$ - start 
 
