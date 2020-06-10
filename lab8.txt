@@ -1,0 +1,512 @@
+		.model tiny
+		.code
+		.386
+		
+		org	100h	  
+ 	          
+eic		macro	cond, str     				;Exit if condition is met
+		LOCAL	exitMacro, writeError
+	                    
+		cond	writeError	                    
+		jmp		exitMacro
+				                    	
+writeError:	  
+	   	mov		ah, 09h
+	   	lea		dx, str
+	   	int		21h
+	   			
+	   	mov		ah, 4Ch
+		int		21h       
+				
+exitMacro:
+endm 	 
+		     
+		     
+		     
+		     
+		     
+start:            
+		mov		ch, 0
+		mov		cl, es:[0080h]
+		mov		si, 81h
+		lea		di, alarmH
+		mov		bx, 125
+		call	readParam				
+		lea		di, alarmM
+		call	readParam
+		lea		di, alarmS
+		call	readParam2
+		lea		di, beepDur
+		call	readParam2  
+		lea		di, buff 
+		mov		bx, 5
+		call	readParam
+		
+		cmp		alarmH[0], 0
+		eic		je, neParams
+		cmp		alarmM[0], 0
+		eic		je, neParams			
+		cmp		alarmS[0], 0
+		eic		je, neParams
+		cmp		beepDur[0], 0
+		eic		je, neParams												
+		cmp		buff[0], 0
+		eic		jne, tmParams	
+				           		              
+		lea		di, alarmH
+		call	atoi2
+		mov		ch, al			;Atoi Hours		           
+		lea		di, alarmM
+		call	atoi
+		mov		cl, al			;Atoi Minutes     
+		lea		di, alarmS
+		call	atoi
+		mov		dh, al			;Atoi Seconds     
+		lea		di, beepDur
+		call	atoi3
+		mov		timeMax, ax		;Atoi beep duration     		      		                  		            				      
+	
+		mov		ah, 07h			;Clear alarm
+		int		1Ah
+		
+		clc				            				                                     
+		mov		ah, 06h                            
+		int		1Ah
+		eic		jc, alarmError	;Set alarm		                   
+		                                       		                                       
+		call	ringAlarm    	;Test ring
+		
+		jmp		installHandler     
+
+alarmH		db	127 dup(0)
+alarmM		db	127 dup(0)
+alarmS		db	127 dup(0)      
+beepDur		db	127 dup(0)
+buff		db	5 dup(0)
+                  
+timeMax		dw	0                   
+timeLeft	dw	0   
+beepOn		db	0
+                
+oldInt4A	dd	0
+oldInt1C	dd	0  
+
+msg_set DB 13,10,'alarm ready $'  
+		                             
+wrongNum	db	"! Please, enter number between 0 and 59$"                               
+wrongNum2	db	"! Please, enter number between 0 and 23$"  
+wrongNum3	db	"! Please, enter number between 1 and 1700$"
+neParams	db	"! Not enough params$"               
+tmParams	db	"! Too many params$"
+alarmError	db	"! Can't set alarm$"		                                            
+	
+alarm		db	"ALARM ALARM$"
+		   
+		   
+proc	atoi		;DI to AX
+		push	bx
+		push	dx
+	
+		mov		ax, 0
+	 
+atoiLoop:
+		cmp		byte ptr [di], 0
+		je		exitAtoi 
+	 
+		cmp		byte ptr [di], '0'
+		eic		jl, wrongNum
+		cmp		byte ptr [di], '9'
+		eic		jg, wrongNum
+			          
+		shl		ax, 4			          
+		mov		bl, [di]
+		sub		bl, '0'
+		add		ax, bx
+		
+		cmp		ax, 59h
+		eic		jg, wrongNum 					      
+			            
+		inc		di			            
+		jmp		atoiLoop
+		
+exitAtoi:							    
+		cmp		ax, 0h
+		eic		jl, wrongNum
+		cmp		ax, 59h
+		eic		jg, wrongNum
+			        	
+		pop		dx
+		pop		bx			        	
+		ret	        
+endp	atoi		   		  		   
+		     
+
+		             
+		             
+proc	atoi2		;DI to AX
+		push	bx
+		push	dx
+	
+		mov		ax, 0
+	 
+atoiLoop2:
+		cmp		byte ptr [di], 0
+		je		exitAtoi2 
+	 
+		cmp		byte ptr [di], '0'
+		eic		jl, wrongNum2
+		cmp		byte ptr [di], '9'
+		eic		jg, wrongNum2
+			          
+		shl		ax, 4			          
+		mov		bl, [di]
+		sub		bl, '0'
+		add		ax, bx
+		
+		cmp		ax, 23h
+		eic		jg, wrongNum2 					      
+			            
+		inc		di			            
+		jmp		atoiLoop2
+		
+exitAtoi2:							    
+		cmp		ax, 0h
+		eic		jl, wrongNum2
+		cmp		ax, 23h
+		eic		jg, wrongNum2
+			        	
+		pop		dx
+		pop		bx			        	
+		ret	        
+endp	atoi2	
+          
+          
+          
+          
+
+proc	atoi3		;DI to AX
+		push	cx
+		push	bx
+		push	dx
+	
+		mov		ax, 0
+	 
+atoiLoop3:
+		cmp		byte ptr [di], 0
+		je		exitAtoi3 
+	 
+		cmp		byte ptr [di], '0'
+		eic		jl, wrongNum3
+		cmp		byte ptr [di], '9'
+		eic		jg, wrongNum3
+			          
+		mov		bx, 10
+		mul		bx			          
+		mov		bl, [di]
+		sub		bl, '0'
+		add		ax, bx
+		
+		cmp		ax, 06A4h		
+		eic		jg, wrongNum3 					     
+			            
+		inc		di			            
+		jmp		atoiLoop3
+		
+exitAtoi3:							    
+		cmp		ax, 1h
+		eic		jl, wrongNum3
+		cmp		ax, 06A4h
+		eic		jg, wrongNum3
+			        	
+		pop		dx
+		pop		bx	
+		pop		cx		        	
+		ret	        
+endp	atoi3	
+		
+		
+
+proc	ringAlarm
+	 	pusha
+		
+		mov 	bx, 18
+ 		mov		ax, timeMax
+ 		mul		bx		 		             
+ 		mov		bx, ax
+ 		mov 	ax, 2000
+		call	beep			         	    	  	
+                          
+		popa	             
+		ret	             
+endp	ringAlarm	
+						     
+
+proc	printAlarm
+		pusha
+	
+	    lea		si, alarm
+		mov		di, 0
+		mov		ax, 0B800h
+		mov		es, ax
+					        
+	printLoop:
+		cmp		byte ptr ds:[si], '$'
+		je		exitPrintLoop
+		
+		movsb
+		mov		byte ptr es:[di], 04h	
+					              	
+		inc		di              
+		jmp		printLoop		
+	exitPrintLoop:
+	        
+		popa	              
+		ret	              
+endp	printAlarm						     
+						             	   		 
+
+
+int4AHandler	proc far
+			pushf
+			call	cs:oldInt4A
+			pusha
+			
+			push	ds
+			push	es
+			push	cs
+			pop		ds	       
+			
+			cli			   		
+   
+ 			call	ringAlarm
+			  
+			sti
+			
+			pop		es
+			pop		ds
+			
+			popa
+			
+			iret
+endp		int4AHandler						                                                                                                                                                
+
+
+
+int1CHandler	proc far
+			pushf
+			call	cs:oldInt1C
+			pusha
+			
+			push	ds
+			push	es
+			push	cs
+			pop		ds	       
+			
+			cli			   		     		
+   		
+   			cmp		beepOn, 1
+   			jne		exitInt1CHandler
+   			           
+			call	printAlarm   			           
+   			           
+   			cmp		timeLeft, 0
+   			jne		decTimeLeft
+   			    
+   			call	stopBeep
+			jmp		exitInt1CHandler   			    
+   			    
+	decTimeLeft:   			
+			dec		timeLeft
+		
+	exitInt1CHandler:			
+			sti
+			
+			pop		es
+			pop		ds
+			
+			popa
+			
+			iret
+endp		int1CHandler	
+                       
+                       
+                       
+                       
+                       
+proc		stopBeep
+			pusha
+	               
+			mov		beepOn, 0	               	
+	               
+	      	in		al, 61h     ;s pomow'u ego mowno upravlat rabotoy dinamica
+  			and		al, 0FCh    ;Clear bit 0 (PIT to speaker) and bit 1 (Speaker enable)
+  			out		61h, al
+	     	 
+			popa	     	        
+			ret	             
+endp		stopBeep             
+             
+                       
+                       
+                       
+                       
+proc		beep    
+			pusha
+	
+			mov		dx, ax
+
+  			mov		al, 0B6h		;10-11-011-0 : 10 - channel 2; 11 - read/write low, then high byte; 011 - mode 3 (meander generator); 0 - not BCD
+  			out		43h, al			;43h - control register
+
+  			mov		ax, dx
+  			out		42h, al			
+  			mov 	al, ah
+  			out		42h, al
+
+  			;Set the countdown
+  			mov 	timeLeft, bx
+  			mov		beepOn, 1
+
+  			;Start the sound
+  			in		al, 61h
+  			or		al, 3h    ;Set bit 0 (PIT to speaker) and bit 1 (Speaker enable)
+  			out		61h, al
+	       
+	       	popa    
+	        ret	      
+endp		beep  
+  
+
+
+installHandler:      
+			mov		ah, 35h  ;polychit' adress obratchika prerivaniy
+			mov		al, 4Ah  ;vector prerivaniya budilnika
+			int		21h
+			
+			mov		word ptr oldInt4A, bx
+			mov		word ptr oldInt4A + 2, es
+			
+			mov		ah, 25h ;hotim ustanovit prerivaniya
+			mov		al, 4Ah          
+			lea		dx, int4AHandler
+			int		21h
+			
+			mov		ah, 35h
+			mov		al, 1Ch  ;pereodicheskoe prerivanie
+			int		21h
+			
+			mov		word ptr oldInt1C, bx
+			mov		word ptr oldInt1C + 2, es
+			
+			mov		ah, 25h
+			mov		al, 1Ch          
+			lea		dx, int1CHandler
+			int		21h     							     							
+			        
+			mov		ax, 3100h
+			mov		dx, (installHandler - start + 100h) / 16 + 1
+			int		21h		
+			    
+			    
+			    
+			    
+			    
+proc	readParam				;Reads param from command line with length CX to ES:[DI] (DS must point to PSP, buffer size in BX)
+		push	ax	  
+		push	bx     	          	
+	      
+	    cmp		cx, 0
+	 	jle		exitReadParam
+	        	      	                  	                  
+skipSpaces:
+	;	push	es
+		push	di
+		;mov		ax, ds          ;
+	;	mov		es, ax
+		mov		di, si
+		
+		mov		al, ' '
+		repz	scasb	   
+		dec		di   
+		inc		cx
+		mov		si, di  
+		
+		pop		di
+		;pop		es
+		        
+findParamEnd:
+		movsb     
+		dec		bx
+		dec		cx
+		cmp		bx, 0
+		je		paramEnded
+		cmp		byte ptr es:[di - 1], 0Dh
+		je		paramEnded
+		cmp		byte ptr es:[di - 1], ':'
+		je		paramEnded
+		cmp		byte ptr es:[di - 1], ' '
+		jne		findParamEnd
+		
+paramEnded:	   		
+		dec		di    
+		mov		byte ptr es:[di], 0
+		inc		di
+
+exitReadParam:	  
+		pop		bx   
+		pop		ax	     		        	
+		ret	            	
+endp	readParam
+
+            
+            
+            
+            
+proc	readParam2				;Reads param from command line with length CX to ES:[DI] (DS must point to PSP, buffer size in BX)
+		push	ax	  
+		push	bx     	          	
+	 
+	 	cmp		cx, 0
+	 	jle		exitReadParam
+	        	      	                  	                  
+skipSpaces2:
+		push	es
+		push	di
+		mov		ax, ds
+		mov		es, ax
+		mov		di, si
+		
+		mov		al, ' '
+		repz	scasb	   
+		dec		di   
+		inc		cx
+		mov		si, di  
+		
+		pop		di
+		pop		es
+		        
+findParamEnd2:
+		movsb     
+		dec		bx
+		dec		cx
+		cmp		bx, 0
+		je		paramEnded2
+		cmp		byte ptr es:[di - 1], 0Dh
+		je		paramEnded2
+		cmp		byte ptr es:[di - 1], ' '
+		jne		findParamEnd2
+		
+paramEnded2:	   		
+		dec		di    
+		mov		byte ptr es:[di], 0
+		inc		di
+
+exitReadParam2:	  
+		pop		bx   
+		pop		ax	     		        	
+		ret	            	
+endp	readParam2			
+				
+						
+end	start			
+			
